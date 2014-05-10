@@ -21,7 +21,7 @@ namespace yat_parser
             host.RunAndBlock();
         }
 
-        static void ParseBlob([BlobInput("yat-moscow-subtrains/{name}")]TextReader inputText)
+        public static void ParseBlob([BlobInput(@"yat-moscow-subtrains/{name}")]TextReader inputText)
         {
             HtmlAgilityPack.HtmlDocument doc = new HtmlAgilityPack.HtmlDocument();
             //doc.Load("../../data/page1.txt");
@@ -74,10 +74,11 @@ namespace yat_parser
                 time = float.Parse((p.departure != null ? p.departure : p.arrival).Replace(":", "."))
             });
 
+            var name = title + " " + stops.First().time.ToString();
 
             var file = new
             {
-                name = title,
+                name = name,
                 lang = "ru",
                 user = "yat-crawler",
                 locations = new[] { new { key = "mow", country = "россия", region = "московская область", city = "москва" } },
