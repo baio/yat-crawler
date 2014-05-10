@@ -70,10 +70,6 @@ namespace Abot.Demo
 
         private class MyLinkParser : HapHyperLinkParser
         {
-            static int count = 0;
-
-            const int TotalCount = -1;
-
             public override System.Collections.Generic.IEnumerable<Uri> GetLinks(CrawledPage crawledPage)
             {
                 var uris = base.GetLinks(crawledPage);
@@ -88,18 +84,13 @@ namespace Abot.Demo
                         string link = null;
                         var baseLink = "http://" + uri.Host + uri.AbsolutePath;
 
+
                         if (uri.AbsoluteUri.Contains("http://rasp.yandex.ru/thread/"))
                         {
-                            if (TotalCount == -1 || count < TotalCount)
-                            {
-                                link = baseLink;
-                                count++;
-                            }
+                            link = baseLink;
                         }
                         else if (uri.AbsoluteUri.Contains("http://rasp.yandex.ru/station/"))
                         {
-                            count = 0;
-
                             var strNum = uri.Segments[uri.Segments.Length - 1];
 
                             int num = 0;
@@ -148,9 +139,11 @@ namespace Abot.Demo
         static void crawler_ProcessPageCrawlCompleted(object sender, PageCrawlCompletedArgs e)
         {
             Uri stationUri = null;
+
             if (e.CrawledPage.Uri.AbsoluteUri.StartsWith("http://rasp.yandex.ru/thread/"))
-                stationUri = e.CrawledPage.ParentUri;
-            else if (e.CrawledPage.Uri.AbsoluteUri.StartsWith("http://rasp.yandex.ru/station/"))
+                return;
+            
+            if (e.CrawledPage.Uri.AbsoluteUri.StartsWith("http://rasp.yandex.ru/station/"))
                 stationUri = e.CrawledPage.Uri;
             else throw new Exception("Unexpected URI");
 
@@ -163,10 +156,11 @@ namespace Abot.Demo
                 CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
                 container = blobClient.GetContainerReference("yat-msocow-subtrains");
                 container.CreateIfNotExist();
+                CloudBlob blob = container.GetBlobReference(name);
+                blob.UploadText(content);
+                
             }
 
-            CloudBlob blob = container.GetBlobReference(name);
-            blob.UploadText(content);
         }
 
     }
