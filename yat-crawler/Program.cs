@@ -141,10 +141,14 @@ namespace Abot.Demo
             Uri stationUri = null;
 
             if (e.CrawledPage.Uri.AbsoluteUri.StartsWith("http://rasp.yandex.ru/thread/"))
+            {
+                stationUri = e.CrawledPage.ParentUri;
+            }
+            else if (e.CrawledPage.Uri.AbsoluteUri.StartsWith("http://rasp.yandex.ru/station/"))
+            {
+                //stationUri = e.CrawledPage.Uri;
                 return;
-            
-            if (e.CrawledPage.Uri.AbsoluteUri.StartsWith("http://rasp.yandex.ru/station/"))
-                stationUri = e.CrawledPage.Uri;
+            }
             else throw new Exception("Unexpected URI");
 
             string name = System.Web.HttpUtility.UrlEncode(e.CrawledPage.Uri.ToString());
@@ -154,12 +158,14 @@ namespace Abot.Demo
             {
                 CloudStorageAccount storageAccount = CloudStorageAccount.Parse(ConfigurationManager.ConnectionStrings["AzureJobsData"].ConnectionString);
                 CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
-                container = blobClient.GetContainerReference("yat-msocow-subtrains");
-                container.CreateIfNotExist();
-                CloudBlob blob = container.GetBlobReference(name);
-                blob.UploadText(content);
-                
+                container = blobClient.GetContainerReference("yat-moscow-subtrains");
+                container.CreateIfNotExist();                
             }
+
+            CloudBlob blob = container.GetBlobReference(name);
+            blob.DeleteIfExists();
+            blob.UploadText(content);
+
 
         }
 
