@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("yat-parser")]
+[assembly: AssemblyTitle("obl-alchemy")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("yat-parser")]
+[assembly: AssemblyProduct("obl-alchemy")]
 [assembly: AssemblyCopyright("Copyright ©  2014")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -20,7 +20,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM
-[assembly: Guid("9cbc7a2c-90c8-4183-9b50-21ba10d0ecfc")]
+[assembly: Guid("92e35c8a-0639-43ea-9d1f-361b9b51702c")]
 
 // Version information for an assembly consists of the following four values:
 //

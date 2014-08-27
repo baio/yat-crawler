@@ -11,6 +11,7 @@ using Microsoft.WindowsAzure.Jobs;
 using Microsoft.WindowsAzure;
 using System.Configuration;
 using Microsoft.WindowsAzure.StorageClient;
+using System.Linq;
 
 namespace Abot.Demo
 {
@@ -22,39 +23,26 @@ namespace Abot.Demo
         {
             //JobHost host = new JobHost();
             Craw();
+
+            System.Console.ReadLine();
         }
-
-
 
         public static void Craw()
         {
             
             log4net.Config.XmlConfigurator.Configure();
-            PrintDisclaimer();
-
-            Uri uriToCrawl = new Uri("http://rasp.yandex.ru/station/2000003?direction=all&type=suburban"); //GetSiteToCrawl(args);
-
+            
             IWebCrawler crawler;
 
-            //Uncomment only one of the following to see that instance in action
-            //crawler = GetDefaultWebCrawler();
             crawler = GetManuallyConfiguredWebCrawler();
-            //crawler = GetCustomBehaviorUsingLambdaWebCrawler();
 
-            //Subscribe to any of these asynchronous events, there are also sychronous versions of each.
-            //This is where you process data about specific events of the crawl
             crawler.PageCrawlCompletedAsync += crawler_ProcessPageCrawlCompleted;
 
-            //Start the crawl
-            //This is a synchronous call
-            CrawlResult result = crawler.Crawl(uriToCrawl);
+            Uri uriToCrawl = new Uri("http://www.1obl.ru/news/?PAGEN_1=1");
+            crawler.Crawl(uriToCrawl);
 
-            //Now go view the log.txt file that is in the same directory as this executable. It has
-            //all the statements that you were trying to read in the console window :).
-            //Not enough data being logged? Change the app.config file's log4net log level from "INFO" TO "DEBUG"
-
-            PrintDisclaimer();
-        
+            //stream.Close();
+                 
         }
 
 
@@ -64,67 +52,35 @@ namespace Abot.Demo
 
             var linkParser = new HapHyperLinkParser();
 
-            return new PoliteWebCrawler(null, null, null, null, null, new MyLinkParser(), null, null, null);
+            CrawlConfiguration crawlConfig = new CrawlConfiguration();
+            crawlConfig.MaxPagesToCrawl = 1100;
+
+            return new PoliteWebCrawler(crawlConfig, null, null, null, null, new MyLinkParser(), null, null, null);
         }
 
 
         private class MyLinkParser : HapHyperLinkParser
         {
+            int count = 1;
+
             public override System.Collections.Generic.IEnumerable<Uri> GetLinks(CrawledPage crawledPage)
             {
-                var uris = base.GetLinks(crawledPage);
-
-                var res = new List<Uri>();
-
-
-                if (crawledPage.CrawlDepth < 2)
+                if (crawledPage.Uri.AbsoluteUri.StartsWith("http://www.1obl.ru/news/?PAGEN_1="))
                 {
-                    foreach (var uri in uris)
-                    {
-                        string link = null;
-                        var baseLink = "http://" + uri.Host + uri.AbsolutePath;
+                    var uris = crawledPage.CsQueryDocument[".main_newslist .news_list_item .item__title a"].ToList().Select(p => new Uri(crawledPage.Uri.Scheme + "://" + crawledPage.Uri.Host + p.GetAttribute("href"))).ToList();
 
+                    count++;
+                    uris.Add(new Uri("http://www.1obl.ru/news/?PAGEN_1=" + count));
 
-                        if (uri.AbsoluteUri.Contains("http://rasp.yandex.ru/thread/"))
-                        {
-                            link = baseLink;
-                        }
-                        else if (uri.AbsoluteUri.Contains("http://rasp.yandex.ru/station/"))
-                        {
-                            var strNum = uri.Segments[uri.Segments.Length - 1];
-
-                            int num = 0;
-
-                            if (int.TryParse(strNum, out num))
-                            {
-                                if (num >= 2000000 && num <= 2000010)
-                                {
-                                    link = baseLink + "?direction=all&type=suburban";
-                                }
-                            }
-                        }
-
-                        if (link != null)
-                        {
-                            var item = new Uri(link);
-
-                            if (link != null && !res.Contains(item))
-                                res.Add(item);
-                        }
-
-                    }
+                    return uris;
                 }
-
-                return res;
+                else
+                {
+                    return new Uri[0];
+                }
             }
         }
-
         
-
-        private static void PrintDisclaimer()
-        {
-            PrintAttentionText("The demo is configured to only crawl a total of 10 pages and will wait 1 second in between http requests. This is to avoid getting you blocked by your isp or the sites you are trying to crawl. You can change these values in the app.config or Abot.Console.exe.config file.");
-        }
 
         private static void PrintAttentionText(string text)
         {
@@ -135,38 +91,79 @@ namespace Abot.Demo
         }
 
         static CloudBlobContainer container;
+        static CloudBlobContainer container_tags;
+
+        static StreamWriter stream;// = new StreamWriter("../../data/tags.txt", true);
 
         static void crawler_ProcessPageCrawlCompleted(object sender, PageCrawlCompletedArgs e)
         {
-            Uri stationUri = null;
 
-            if (e.CrawledPage.Uri.AbsoluteUri.StartsWith("http://rasp.yandex.ru/thread/"))
+            if (!e.CrawledPage.Uri.AbsoluteUri.StartsWith("http://www.1obl.ru/news/"))
             {
-                stationUri = e.CrawledPage.ParentUri;
+                throw new Exception("Unexpected URI");
             }
-            else if (e.CrawledPage.Uri.AbsoluteUri.StartsWith("http://rasp.yandex.ru/station/"))
-            {
-                //stationUri = e.CrawledPage.Uri;
-                return;
-            }
-            else throw new Exception("Unexpected URI");
 
-            string name = System.Web.HttpUtility.UrlEncode(e.CrawledPage.Uri.ToString());
-            string content = e.CrawledPage.Content.Text;
 
+            string content = e.CrawledPage.CsQueryDocument["#post_body"].Text();
+            string tagsContent = e.CrawledPage.CsQueryDocument["#main_section .news_item_tags"].Text();
+
+            /*
             if (container == null)
             {
                 CloudStorageAccount storageAccount = CloudStorageAccount.Parse(ConfigurationManager.ConnectionStrings["AzureJobsData"].ConnectionString);
                 CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
-                container = blobClient.GetContainerReference("yat-moscow-subtrains");
-                container.CreateIfNotExist();                
+
+                container = blobClient.GetContainerReference("1obl");
+                container.CreateIfNotExist();
+
+                container_tags = blobClient.GetContainerReference("1obltags");
+                container_tags.CreateIfNotExist();
+            }
+             */
+
+            if (!string.IsNullOrEmpty(content))
+            {
+                string name = System.Web.HttpUtility.UrlEncode(e.CrawledPage.Uri.ToString());
+
+                System.IO.File.WriteAllText("../../../data/contents/" + name + ".txt", content);
+
+
+                /*
+                CloudBlob blob = container.GetBlobReference(name);
+                blob.DeleteIfExists();
+                blob.UploadText(content);
+                 */
             }
 
-            CloudBlob blob = container.GetBlobReference(name);
-            blob.DeleteIfExists();
-            blob.UploadText(content);
+            /*
+            if (!string.IsNullOrEmpty(tags))
+            {
+                tags = Regex.Replace(tags, @"\t", "");
+                tags = Regex.Replace(tags, @", ", ",");
+                tags = Regex.Replace(tags, @"( |\t|\r?\n)\1", "$1");
+                tags = Regex.Replace(tags, @"(?:(?:\r?\n)+ +){2,}", @"\n");
 
 
+                string name = System.Web.HttpUtility.UrlEncode(e.CrawledPage.Uri.ToString());
+                CloudBlob blob = container_tags.GetBlobReference(name);
+                blob.DeleteIfExists();
+                blob.UploadText(tags);
+
+            }
+             */
+
+
+            /*
+            if (!string.IsNullOrEmpty(tagsContent))
+            {
+                var tags = Regex.Replace(tagsContent, @"[\t\r\n]", "");
+                tags = Regex.Replace(tagsContent, @"\s+", " ");
+                tags = tags.Trim();
+                
+                TextWriter.Synchronized(stream).WriteLine(tags);
+
+            }
+             */
         }
 
     }
